@@ -2,262 +2,220 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>11XXXXX - HW10</title>
     <style>
-        :root {
-            --board-color: #2e7d32;
-            --cell-color: #4caf50;
-            --cell-border: #1b5e20;
-        }
-
-        body {
-            font-family: "Microsoft JhengHei", Arial, sans-serif;
-            background-color: #e8f5e9;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .info-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            text-align: center;
-            width: 400px;
-        }
-
-        /* 棋盤容器 */
+        body { background-color: #f0f0f0; display: flex; flex-direction: column; align-items: center; font-family: "Microsoft JhengHei", sans-serif; }
+        .info { text-align: center; margin: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 350px; }
+        
         .board {
             display: grid;
             grid-template-columns: repeat(8, 60px);
             grid-template-rows: repeat(8, 60px);
             gap: 4px;
-            background-color: var(--cell-border);
+            background-color: #1b5e20;
             padding: 10px;
             border-radius: 8px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            perspective: 1000px; /* 3D 視角關鍵 */
+            perspective: 1000px;
         }
-
+        
         .cell {
-            width: 60px;
-            height: 60px;
-            background-color: var(--cell-color);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            position: relative;
+            width: 60px; height: 60px;
+            background-color: #4caf50;
+            display: flex; justify-content: center; align-items: center;
+            position: relative; cursor: pointer;
         }
 
-        /* 立體棋子外殼 */
+        /* 棋子主體 */
         .piece {
-            width: 50px;
-            height: 50px;
+            width: 50px; height: 50px;
             position: relative;
-            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             transform-style: preserve-3d;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* 翻轉狀態：白棋為 180 度 */
-        .piece.is-white {
-            transform: rotateY(180deg);
-        }
+        /* 狀態控制：黑棋正面朝上(0度)，白棋反面朝上(180度) */
+        .piece.is-black { transform: rotateY(0deg); }
+        .piece.is-white { transform: rotateY(180deg); }
 
-        /* 棋子兩面共通樣式 */
         .side {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            backface-visibility: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            position: absolute; width: 100%; height: 100%;
+            border-radius: 50%; backface-visibility: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        
+        .front { background: radial-gradient(circle at 30% 30%, #444, #000); }
+        .back { 
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc); 
+            transform: rotateY(180deg); 
         }
 
-        /* 黑子面 (正面) */
-        .front {
-            background: radial-gradient(circle at 30% 30%, #555, #000);
-            z-index: 2;
-        }
-
-        /* 白子面 (反面) */
-        .back {
-            background: radial-gradient(circle at 30% 30%, #fff, #bbb);
-            transform: rotateY(180deg); /* 初始就背對 */
-        }
-
-        /* 可落子提示 */
-        .hint {
-            width: 12px;
-            height: 12px;
-            background-color: rgba(0,0,0,0.15);
-            border-radius: 50%;
-        }
-
-        .controls { margin-top: 15px; }
-        button { padding: 8px 20px; cursor: pointer; border-radius: 5px; border: none; background: #2e7d32; color: white; }
-        select { padding: 7px; border-radius: 5px; }
+        .hint { width: 12px; height: 12px; background: rgba(0,0,0,0.15); border-radius: 50%; }
     </style>
 </head>
 <body>
 
-    <div class="info-panel">
-        <h2 id="title">11XXXXX - HW10</h2>
-        <div id="status" style="font-weight: bold; color: #333;">輪到：黑棋 (玩家)</div>
-        <div id="score" style="margin: 10px 0;">黑棋: 2 | 白棋: 2</div>
-        
-        <div class="controls">
-            AI: <select id="diff">
-                <option value="basic">基本 (隨機優先)</option>
-                <option value="pro">進階 (權重計算)</option>
-            </select>
-            <button onclick="reset()">重新開始</button>
-        </div>
+<div class="info">
+    <h2>11XXXXX - HW10</h2>
+    <div id="status">輪到：黑棋 (玩家)</div>
+    <div id="score">黑: 2 | 白: 2</div>
+    <div style="margin-top:10px">
+        AI 棋力: <select id="level"><option value="1">基本</option><option value="2">進階</option></select>
+        <button onclick="initGame()">重新開始</button>
     </div>
+</div>
 
-    <div id="board" class="board"></div>
+<div id="board" class="board"></div>
 
-    <script>
-        const size = 8;
-        let grid = [];
-        let turn = 1; // 1:Black, 2:White
-        let locked = false;
+<script>
+let grid = Array(8).fill().map(() => Array(8).fill(0));
+let turn = 1; 
+let isAnimating = false;
 
-        // 進階 AI 權重表
-        const WEIGHTS = [
-            [100,-20,10,5,5,10,-20,100],
-            [-20,-50,-2,-2,-2,-2,-50,-20],
-            [10,-2,5,1,1,5,-2,10],
-            [5,-2,1,1,1,1,-2,5],
-            [5,-2,1,1,1,1,-2,5],
-            [10,-2,5,1,1,5,-2,10],
-            [-20,-50,-2,-2,-2,-2,-50,-20],
-            [100,-20,10,5,5,10,-20,100]
-        ];
-
-        function reset() {
-            grid = Array(size).fill().map(() => Array(size).fill(0));
-            grid[3][3] = 2; grid[3][4] = 1;
-            grid[4][3] = 1; grid[4][4] = 2;
-            turn = 1; locked = false;
-            draw();
+// 初始化棋盤 DOM (只建立一次)
+function createBoard() {
+    const boardEl = document.getElementById('board');
+    boardEl.innerHTML = '';
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `cell-${r}-${c}`;
+            cell.onclick = () => handlePlayerMove(r, c);
+            boardEl.appendChild(cell);
         }
+    }
+}
 
-        function draw() {
-            const container = document.getElementById('board');
-            container.innerHTML = '';
-            let b=0, w=0;
+function initGame() {
+    grid = Array(8).fill().map(() => Array(8).fill(0));
+    isAnimating = false;
+    turn = 1;
+    // 清除所有棋子 DOM
+    document.querySelectorAll('.cell').forEach(c => c.innerHTML = '');
+    
+    // 初始四子
+    setPiece(3, 3, 2); setPiece(3, 4, 1);
+    setPiece(4, 3, 1); setPiece(4, 4, 2);
+    
+    updateDisplay();
+}
 
-            for(let r=0; r<size; r++) {
-                for(let c=0; c<size; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.onclick = () => playerMove(r,c);
+// 放置或更新棋子，不重畫整個棋盤
+function setPiece(r, c, color) {
+    const cell = document.getElementById(`cell-${r}-${c}`);
+    let piece = cell.querySelector('.piece');
+    
+    if (!piece) {
+        // 如果格子是空的，建立新棋子
+        piece = document.createElement('div');
+        piece.className = 'piece';
+        piece.innerHTML = '<div class="side front"></div><div class="side back"></div>';
+        cell.appendChild(piece);
+    }
+    
+    // 強制觸發重繪以確保動畫執行
+    setTimeout(() => {
+        piece.className = `piece ${color === 1 ? 'is-black' : 'is-white'}`;
+    }, 10);
+    
+    grid[r][c] = color;
+}
 
-                    if(grid[r][c] !== 0) {
-                        const p = document.createElement('div');
-                        p.className = 'piece' + (grid[r][c] === 2 ? ' is-white' : '');
-                        p.innerHTML = '<div class="side front"></div><div class="side back"></div>';
-                        cell.appendChild(p);
-                        grid[r][c] === 1 ? b++ : w++;
-                    } else if(getValidFlips(r, c, turn).length > 0) {
+function updateDisplay() {
+    let b = 0, w = 0;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.getElementById(`cell-${r}-${c}`);
+            const hint = cell.querySelector('.hint');
+            if (grid[r][c] === 0) {
+                if (getFlips(r, c, turn).length > 0) {
+                    if (!hint) {
                         const h = document.createElement('div');
                         h.className = 'hint';
                         cell.appendChild(h);
                     }
-                    container.appendChild(cell);
+                } else if (hint) {
+                    hint.remove();
                 }
+            } else if (hint) {
+                hint.remove();
             }
-            document.getElementById('score').innerText = `黑棋: ${b} | 白棋: ${w}`;
-            document.getElementById('status').innerText = `輪到：${turn===1?'黑棋 (玩家)':'白棋 (電腦)'}`;
+            if (grid[r][c] === 1) b++;
+            if (grid[r][c] === 2) w++;
         }
+    }
+    document.getElementById('score').innerText = `黑: ${b} | 白: ${w}`;
+}
 
-        async function playerMove(r, c) {
-            if(locked || turn !== 1) return;
-            const flips = getValidFlips(r, c, 1);
-            if(flips.length === 0) return;
+async function handlePlayerMove(r, c) {
+    if (isAnimating || turn !== 1) return;
+    const flips = getFlips(r, c, 1);
+    if (flips.length === 0) return;
 
-            await executeAction(r, c, 1, flips);
-            
-            if(canPlay(2)) {
-                locked = true;
-                setTimeout(aiMove, 1200);
-            } else if(!canPlay(1)) {
-                alert("遊戲結束！");
-            }
+    isAnimating = true;
+    setPiece(r, c, 1); // 玩家落子
+    await executeFlips(flips, 1);
+    
+    turn = 2;
+    document.getElementById('status').innerText = "輪到：白棋 (電腦)";
+    updateDisplay();
+    setTimeout(aiMove, 800);
+}
+
+async function aiMove() {
+    const moves = [];
+    for(let r=0; r<8; r++) {
+        for(let c=0; c<8; c++) {
+            const f = getFlips(r, c, 2);
+            if(f.length > 0) moves.push({r, c, f});
         }
+    }
 
-        async function aiMove() {
-            const diff = document.getElementById('diff').value;
-            let best = null, max = -1000;
+    if (moves.length > 0) {
+        const weights = [[100,-20,10,10,10,10,-20,100],[-20,-50,1,1,1,1,-50,-20],[10,1,5,2,2,5,1,10],[10,1,2,1,1,2,1,10],[10,1,2,1,1,2,1,10],[10,1,5,2,2,5,1,10],[-20,-50,1,1,1,1,-50,-20],[100,-20,10,10,10,10,-20,100]];
+        const isPro = document.getElementById('level').value === "2";
+        moves.sort((a, b) => isPro ? (weights[b.r][b.c] - weights[a.r][a.c]) : (b.f.length - a.f.length));
+        
+        const best = moves[0];
+        setPiece(best.r, best.c, 2); // 電腦落子
+        await executeFlips(best.f, 2);
+    }
 
-            for(let r=0; r<size; r++) {
-                for(let c=0; c<size; c++) {
-                    const flips = getValidFlips(r, c, 2);
-                    if(flips.length > 0) {
-                        let score = diff === 'pro' ? WEIGHTS[r][c] : flips.length;
-                        if(score > max) { max = score; best = {r, c, flips}; }
-                    }
-                }
-            }
+    turn = 1;
+    isAnimating = false;
+    document.getElementById('status').innerText = "輪到：黑棋 (玩家)";
+    updateDisplay();
+}
 
-            if(best) await executeAction(best.r, best.c, 2, best.flips);
-            
-            locked = false;
-            if(canPlay(1)) turn = 1;
-            else if(canPlay(2)) setTimeout(aiMove, 1000);
-            else alert("遊戲結束！");
-            draw();
+// 核心動畫邏輯：依序翻轉
+async function executeFlips(flippable, color) {
+    // 移除所有提示點，避免動畫時干擾
+    document.querySelectorAll('.hint').forEach(h => h.remove());
+    
+    for (let pos of flippable) {
+        await new Promise(res => setTimeout(res, 200)); // 翻轉間隔
+        setPiece(pos.r, pos.c, color);
+    }
+}
+
+function getFlips(r, c, color) {
+    if (grid[r][c] !== 0) return [];
+    const opp = color === 1 ? 2 : 1;
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+    let res = [];
+    for (let [dr, dc] of dirs) {
+        let temp = [], cr = r + dr, cc = c + dc;
+        while (cr>=0 && cr<8 && cc>=0 && cc<8 && grid[cr][cc] === opp) {
+            temp.push({r: cr, c: cc});
+            cr += dr; cc += dc;
         }
+        if (cr>=0 && cr<8 && cc>=0 && cc<8 && grid[cr][cc] === color) res = res.concat(temp);
+    }
+    return res;
+}
 
-        // 核心：執行落子與依序翻棋
-        async function executeAction(r, c, color, flips) {
-            grid[r][c] = color;
-            draw(); // 先畫出落子
-            
-            // 延遲一點點再開始翻轉，更有打擊感
-            await new Promise(res => setTimeout(res, 200));
-
-            for(let f of flips) {
-                grid[f.r][f.c] = color;
-                draw(); // 每次更新一格，觸發 CSS transition
-                await new Promise(res => setTimeout(res, 150)); // 依序翻轉間隔
-            }
-            turn = (color === 1) ? 2 : 1;
-            draw();
-        }
-
-        function getValidFlips(r, c, color) {
-            if(grid[r][c] !== 0) return [];
-            const opp = color === 1 ? 2 : 1;
-            const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-            let allFlips = [];
-
-            for(let [dr, dc] of dirs) {
-                let temp = [], currR = r+dr, currC = c+dc;
-                while(currR>=0 && currR<size && currC>=0 && currC<size && grid[currR][currC] === opp) {
-                    temp.push({r: currR, c: currC});
-                    currR += dr; currC += dc;
-                }
-                if(currR>=0 && currR<size && currC>=0 && currC<size && grid[currR][currC] === color) {
-                    allFlips = allFlips.concat(temp);
-                }
-            }
-            return allFlips;
-        }
-
-        function canPlay(color) {
-            for(let r=0; r<size; r++)
-                for(let c=0; c<size; c++)
-                    if(getValidFlips(r, c, color).length > 0) return true;
-            return false;
-        }
-
-        reset();
-    </script>
+createBoard();
+initGame();
+</script>
 </body>
 </html>
